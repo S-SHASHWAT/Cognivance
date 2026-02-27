@@ -1,86 +1,73 @@
+import cv2
 import os
-import subprocess
+
+# Filler word analysis
+def analyze_filler_words(text):
+    fillers = ["um", "uh", "like", "you know", "basically"]
+
+    text = text.lower()
+    count = 0
+
+    for word in fillers:
+        count += text.count(word)
+
+    if count == 0:
+        return 10
+    elif count <= 2:
+        return 7
+    elif count <= 5:
+        return 5
+    else:
+        return 2
+
+
+# Eye contact analysis (basic)
+import cv2
+import os
 
 import cv2
+import os
 
+def analyze_eye_contact(video_path):
+    frames_folder = "frames"
+    os.makedirs(frames_folder, exist_ok=True)
 
-def _score_from_video(video_path, max_frames=100):
+    # Clear old frames
+    for f in os.listdir(frames_folder):
+        os.remove(os.path.join(frames_folder, f))
+
+    # Extract frames using ffmpeg
+    os.system(f"ffmpeg -i {video_path} {frames_folder}/frame_%03d.jpg -y")
+
     face_cascade = cv2.CascadeClassifier(
-        cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
     )
 
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        return 0, 0
+    frame_files = os.listdir(frames_folder)
 
-    frames_with_face = 0
+    if len(frame_files) == 0:
+        return 0
+
     total_frames = 0
+    face_detected = 0
 
-    while total_frames < max_frames:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    for file in frame_files:
+        path = os.path.join(frames_folder, file)
 
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        gray = cv2.equalizeHist(gray)
-        faces = face_cascade.detectMultiScale(
-            gray,
-            scaleFactor=1.1,
-            minNeighbors=4,
-            minSize=(30, 30),
-        )
-
-        if len(faces) > 0:
-            frames_with_face += 1
+        img = cv2.imread(path)
+        if img is None:
+            continue
 
         total_frames += 1
 
-    cap.release()
-    return frames_with_face, total_frames
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
+        if len(faces) > 0:
+            face_detected += 1
 
-def analyze_eye_contact(video_path):
-    # First try the original recording as-is.
-    best_faces, best_total = _score_from_video(video_path)
+    if total_frames == 0:
+        return 0
 
-    # Fallback: many OpenCV builds cannot decode browser webm reliably.
-    temp_mp4 = "eye_contact_temp.mp4"
-    if best_total == 0 and video_path.lower().endswith(".webm"):
-        try:
-            subprocess.run(
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    video_path,
-                    "-an",
-                    "-vcodec",
-                    "libx264",
-                    temp_mp4,
-                ],
-                check=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-            best_faces, best_total = _score_from_video(temp_mp4)
-        except Exception:
-            pass
-        finally:
-            if os.path.exists(temp_mp4):
-                os.remove(temp_mp4)
-
-    if best_total == 0:
-        return 0.0
-
-    eye_contact_score = (best_faces / best_total) * 100
-    return round(eye_contact_score, 2)
-
-
-def generate_final_score(eye_score, sentiment, filler_count):
-    score = 50
-    score += eye_score * 0.2
-    score += sentiment * 20
-    score -= filler_count * 2
-
-    score = max(0, min(score, 100))
+    score = (face_detected / total_frames) * 10
     return round(score, 2)

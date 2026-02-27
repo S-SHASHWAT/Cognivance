@@ -1,25 +1,21 @@
 import speech_recognition as sr
 from pydub import AudioSegment
-import os
 
-def transcribe_audio_file(audio_path):
-
-    # Convert browser audio (webm) → wav using FFmpeg
-    webm_audio = AudioSegment.from_file(audio_path, format="webm")
-    webm_audio.export("converted.wav", format="wav")
-
-    recognizer = sr.Recognizer()
-
-    with sr.AudioFile("converted.wav") as source:
-        audio = recognizer.record(source)
+def transcribe_audio_file(video_path):
+    wav_path = "converted.wav"
 
     try:
-        text = recognizer.recognize_google(audio)
+        # Convert webm → wav
+        audio = AudioSegment.from_file(video_path)
+        audio.export(wav_path, format="wav")
+
+        recognizer = sr.Recognizer()
+
+        with sr.AudioFile(wav_path) as source:
+            audio_data = recognizer.record(source)
+            text = recognizer.recognize_google(audio_data)
+
+        return text
+
     except:
-        text = "Could not understand audio"
-
-    # cleanup temp file
-    if os.path.exists("converted.wav"):
-        os.remove("converted.wav")
-
-    return text
+        return "Could not understand audio"

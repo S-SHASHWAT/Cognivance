@@ -1,45 +1,46 @@
-from flask import Flask, render_template, request, jsonify
-from speech_module import transcribe_audio_file
-from sentiment_module import analyze_text
-from interview_analyzer import analyze_eye_contact, generate_final_score
+from interview_analyzer import analyze_filler_words, analyze_eye_contact
+from flask import Flask, render_template, request
 import os
+from speech_module import transcribe_audio_file
 
 app = Flask(__name__)
 
+UPLOAD_FOLDER = "uploads"
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route("/")
-def home():
+def index():
     return render_template("index.html")
 
 
 @app.route("/start_interview", methods=["POST"])
 def start_interview():
-    try:
-        uploaded_file = request.files.get("audio") or request.files.get("video")
+    print("Headers:", request.headers)
+    print("Files:", request.files)
 
-        if not uploaded_file or uploaded_file.filename == "":
-            return jsonify({"error": "No audio/video file received. Expected form field 'audio' or 'video'."}), 400
+    if "video" not in request.files:
+        return "❌ No video file received", 400
 
-        media_path = "recorded_audio.webm"
-        uploaded_file.save(media_path)
+    video_file = request.files["video"]
 
-        text = transcribe_audio_file(media_path)
-        sentiment, filler_count = analyze_text(text)
-        eye_score = analyze_eye_contact(media_path)
+    if video_file.filename == "":
+        return "❌ Empty filename", 400
 
-        final_score = generate_final_score(eye_score, sentiment, filler_count)
+    video_path = os.path.join(UPLOAD_FOLDER, "input.webm")
+    video_file.save(video_path)
 
-        return jsonify(
-            {
-                "Transcript": text,
-                "Eye Contact Score": eye_score,
-                "Filler Words": filler_count,
-                "Final Score": final_score,
-            }
-        )
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+    print("✅ Video saved")
 
+    # Process
+    text = transcribe_audio_file(video_path)
+    filler_score = analyze_filler_words(text)
+    eye_score = analyze_eye_contact(video_path)
+
+    return f"""
+    Transcript: {text} <br>
+    Eye Contact Score: {eye_score} <br>
+    Filler Words: {filler_score}
+    """
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(debug=True)
