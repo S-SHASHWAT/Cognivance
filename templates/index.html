@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Interview Analyzer</title>
+</head>
+<body>
+
+<h2>Interview Analyzer</h2>
+
+<video id="video" width="320" height="240" autoplay></video>
+<br><br>
+
+<button onclick="startRecording()">Start</button>
+<button onclick="stopRecording()">Stop</button>
+
+<p id="status"></p>
+
+<script>
+let mediaRecorder;
+let audioChunks = [];
+let stream;
+
+// 🔥 PRELOAD camera + mic
+window.onload = async () => {
+    document.getElementById("status").innerText = "Initializing camera...";
+
+    stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true
+    });
+
+    const video = document.getElementById("video");
+    video.srcObject = stream;
+
+    await video.play();
+
+    document.getElementById("status").innerText = "Ready";
+};
+
+// ✅ Start recording
+function startRecording() {
+    audioChunks = [];
+
+    mediaRecorder = new MediaRecorder(stream);
+
+    mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) {
+            audioChunks.push(event.data);
+        }
+    };
+
+    mediaRecorder.start();
+
+    document.getElementById("status").innerText = "Recording... Speak now";
+}
+
+// ✅ Stop and send properly
+function stopRecording() {
+    document.getElementById("status").innerText = "Processing...";
+
+    mediaRecorder.stop();
+
+    mediaRecorder.onstop = async () => {
+        const blob = new Blob(audioChunks, { type: "video/webm" });
+
+        // ✅ IMPORTANT FIX
+        const file = new File([blob], "recording.webm", {
+            type: "video/webm"
+        });
+
+        const formData = new FormData();
+        formData.append("video", file);
+
+        const response = await fetch("/start_interview", {
+            method: "POST",
+            body: formData
+        });
+
+        const result = await response.text();
+        document.getElementById("status").innerHTML = result;
+
+        audioChunks = [];
+    };
+}
+</script>
+
+</body>
+</html>

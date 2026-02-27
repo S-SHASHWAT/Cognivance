@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+Python
+.git/
+.gitignore
+.vscode/
+recorded_audio.webm
+recorded_audio.wav
+converted.wav
+eye_contact_temp.mp4
