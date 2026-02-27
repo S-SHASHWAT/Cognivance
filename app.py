@@ -1,12 +1,13 @@
-from interview_analyzer import analyze_filler_words, analyze_eye_contact
-from flask import Flask, render_template, request
 import os
+from flask import Flask, jsonify, render_template, request
 from speech_module import transcribe_audio_file
+from interview_analyzer import analyze_filler_words, analyze_eye_contact
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
 
 @app.route("/")
 def index():
@@ -15,32 +16,32 @@ def index():
 
 @app.route("/start_interview", methods=["POST"])
 def start_interview():
-    print("Headers:", request.headers)
-    print("Files:", request.files)
+    try:
+        video_file = request.files.get("video") or request.files.get("audio")
+        if video_file is None:
+            return jsonify({"error": "No video file received."}), 400
 
-    if "video" not in request.files:
-        return "❌ No video file received", 400
+        if not video_file.filename:
+            return jsonify({"error": "Empty filename."}), 400
 
-    video_file = request.files["video"]
+        video_path = os.path.join(UPLOAD_FOLDER, "input.webm")
+        video_file.save(video_path)
 
-    if video_file.filename == "":
-        return "❌ Empty filename", 400
+        text = transcribe_audio_file(video_path)
+        filler_score = analyze_filler_words(text)
+        eye_score = analyze_eye_contact(video_path)
 
-    video_path = os.path.join(UPLOAD_FOLDER, "input.webm")
-    video_file.save(video_path)
+        return jsonify(
+            {
+                "Transcript": text,
+                "Eye Contact Score": eye_score,
+                "Filler Words": filler_score,
+            }
+        )
+    except Exception as exc:
+        app.logger.exception("start_interview failed")
+        return jsonify({"error": str(exc)}), 500
 
-    print("✅ Video saved")
-
-    # Process
-    text = transcribe_audio_file(video_path)
-    filler_score = analyze_filler_words(text)
-    eye_score = analyze_eye_contact(video_path)
-
-    return f"""
-    Transcript: {text} <br>
-    Eye Contact Score: {eye_score} <br>
-    Filler Words: {filler_score}
-    """
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)

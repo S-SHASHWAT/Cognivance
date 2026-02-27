@@ -20,7 +20,6 @@ let mediaRecorder;
 let audioChunks = [];
 let stream;
 
-// 🔥 PRELOAD camera + mic
 window.onload = async () => {
     document.getElementById("status").innerText = "Initializing camera...";
 
@@ -31,16 +30,13 @@ window.onload = async () => {
 
     const video = document.getElementById("video");
     video.srcObject = stream;
-
     await video.play();
 
     document.getElementById("status").innerText = "Ready";
 };
 
-// ✅ Start recording
 function startRecording() {
     audioChunks = [];
-
     mediaRecorder = new MediaRecorder(stream);
 
     mediaRecorder.ondataavailable = event => {
@@ -50,34 +46,40 @@ function startRecording() {
     };
 
     mediaRecorder.start();
-
     document.getElementById("status").innerText = "Recording... Speak now";
 }
 
-// ✅ Stop and send properly
 function stopRecording() {
     document.getElementById("status").innerText = "Processing...";
-
     mediaRecorder.stop();
 
     mediaRecorder.onstop = async () => {
         const blob = new Blob(audioChunks, { type: "video/webm" });
-
-        // ✅ IMPORTANT FIX
-        const file = new File([blob], "recording.webm", {
-            type: "video/webm"
-        });
+        const file = new File([blob], "recording.webm", { type: "video/webm" });
 
         const formData = new FormData();
         formData.append("video", file);
 
-        const response = await fetch("/start_interview", {
-            method: "POST",
-            body: formData
-        });
+        try {
+            const response = await fetch("/start_interview", {
+                method: "POST",
+                body: formData
+            });
 
-        const result = await response.text();
-        document.getElementById("status").innerHTML = result;
+            const payload = await response.json();
+            if (!response.ok) {
+                document.getElementById("status").innerText = `Error: ${payload.error || "Unknown error"}`;
+                return;
+            }
+
+            document.getElementById("status").innerHTML = `
+                Transcript: ${payload["Transcript"]}<br>
+                Eye Contact Score: ${payload["Eye Contact Score"]}<br>
+                Filler Words: ${payload["Filler Words"]}
+            `;
+        } catch (err) {
+            document.getElementById("status").innerText = `Error: ${err.message}`;
+        }
 
         audioChunks = [];
     };
