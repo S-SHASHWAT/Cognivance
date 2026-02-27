@@ -1,0 +1,6 @@
+services:
+  - type: web
+    name: cognivance
+    env: docker
+    plan: free
+    autoDeploy: true
