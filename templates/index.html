@@ -19,6 +19,8 @@
 let mediaRecorder;
 let audioChunks = [];
 let stream;
+let autoStopTimer = null;
+const MAX_RECORDING_MS = 45000;
 
 window.onload = async () => {
     document.getElementById("status").innerText = "Initializing camera...";
@@ -47,10 +49,24 @@ function startRecording() {
 
     mediaRecorder.start();
     document.getElementById("status").innerText = "Recording... Speak now";
+
+    clearTimeout(autoStopTimer);
+    autoStopTimer = setTimeout(() => {
+        if (mediaRecorder && mediaRecorder.state === "recording") {
+            document.getElementById("status").innerText = "Auto-stopping to keep processing fast...";
+            stopRecording();
+        }
+    }, MAX_RECORDING_MS);
 }
 
 function stopRecording() {
+    clearTimeout(autoStopTimer);
     document.getElementById("status").innerText = "Processing...";
+
+    if (!mediaRecorder || mediaRecorder.state !== "recording") {
+        return;
+    }
+
     mediaRecorder.stop();
 
     mediaRecorder.onstop = async () => {
