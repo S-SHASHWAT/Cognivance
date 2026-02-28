@@ -66,9 +66,22 @@ function stopRecording() {
                 body: formData
             });
 
-            const payload = await response.json();
+            const raw = await response.text();
+            let payload = null;
+            try {
+                payload = JSON.parse(raw);
+            } catch (_) {
+                payload = null;
+            }
+
             if (!response.ok) {
-                document.getElementById("status").innerText = `Error: ${payload.error || "Unknown error"}`;
+                const errorText = payload?.error || raw || "Unknown server error";
+                document.getElementById("status").innerText = `Error: ${errorText}`;
+                return;
+            }
+
+            if (!payload) {
+                document.getElementById("status").innerText = `Unexpected response: ${raw}`;
                 return;
             }
 
