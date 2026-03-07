@@ -33,7 +33,7 @@ def analyze_eye_contact(video_path):
 
     temp_dir = tempfile.mkdtemp(prefix="frames_")
     try:
-        # Extract a small sample: 1 frame/sec from first 20 seconds.
+        # Extract frames across full answer duration (1 fps).
         frame_pattern = os.path.join(temp_dir, "frame_%03d.jpg")
         cmd = [
             "ffmpeg",
@@ -45,8 +45,6 @@ def analyze_eye_contact(video_path):
             video_path,
             "-vf",
             "fps=1,scale=640:-1",
-            "-t",
-            "20",
             frame_pattern,
         ]
         subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)

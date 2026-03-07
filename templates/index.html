@@ -7,40 +7,256 @@
 
 <h2>Interview Analyzer</h2>
 
+<h3>1) Resume-Based Questions</h3>
+<input id="resumeInput" type="file" accept=".pdf,.txt,.md" />
+<br><br>
+<input id="geminiKeyInput" type="password" placeholder="Gemini API Key (optional)" style="width: 320px;" />
+<input id="geminiModelInput" type="text" value="gemini-3-flash-preview" placeholder="Gemini model" style="width: 220px;" />
+<button onclick="generateQuestions()">Generate Questions</button>
+<p id="resumeStatus"></p>
+<div id="skillsOutput"></div>
+
+<hr>
+
+<h3>2) Question-by-Question Interview</h3>
+<p id="questionCounter"></p>
+<p id="currentQuestion"><b>Question will appear here after resume processing.</b></p>
+<p id="timerText">Timer: 00:00</p>
+
 <video id="video" width="320" height="240" autoplay></video>
 <br><br>
 
-<button onclick="startRecording()">Start</button>
-<button onclick="stopRecording()">Stop</button>
+<button id="startBtn" onclick="startRecording()" disabled>Start Answer</button>
+<button id="stopBtn" onclick="stopRecording()" disabled>Stop Answer</button>
 
 <p id="status"></p>
+<div id="answerResult"></div>
+<div id="finalResult"></div>
 
 <script>
 let mediaRecorder;
 let audioChunks = [];
 let stream;
-let autoStopTimer = null;
-const MAX_RECORDING_MS = 45000;
+let timerInterval = null;
+let timerSeconds = 0;
+
+let interviewQuestions = [];
+let currentQuestionIndex = 0;
+let perQuestionScores = [];
+
+let speechRecognizer = null;
+let liveFinalTranscript = "";
+let liveInterimTranscript = "";
+let speechSupported = false;
+let isAnswerRecording = false;
 
 window.onload = async () => {
     document.getElementById("status").innerText = "Initializing camera...";
 
-    stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: true
-    });
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
 
     const video = document.getElementById("video");
     video.srcObject = stream;
     await video.play();
 
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRec) {
+        speechSupported = true;
+        speechRecognizer = new SpeechRec();
+        speechRecognizer.continuous = true;
+        speechRecognizer.interimResults = true;
+        speechRecognizer.lang = "en-US";
+
+        speechRecognizer.onresult = (event) => {
+            let interim = "";
+            for (let i = event.resultIndex; i < event.results.length; i += 1) {
+                const chunk = event.results[i][0].transcript || "";
+                if (event.results[i].isFinal) {
+                    liveFinalTranscript = (liveFinalTranscript + " " + chunk).trim();
+                } else {
+                    interim += `${chunk} `;
+                }
+            }
+            liveInterimTranscript = interim.trim();
+        };
+
+        // Browser recognition can stop mid-answer; restart while recording.
+        speechRecognizer.onend = () => {
+            if (isAnswerRecording) {
+                try {
+                    speechRecognizer.start();
+                } catch (_) {
+                }
+            }
+        };
+    }
+
     document.getElementById("status").innerText = "Ready";
 };
 
-function startRecording() {
-    audioChunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+function formatTime(totalSeconds) {
+    const m = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const s = String(totalSeconds % 60).padStart(2, "0");
+    return `${m}:${s}`;
+}
 
+function resetTimer() {
+    clearInterval(timerInterval);
+    timerSeconds = 0;
+    document.getElementById("timerText").innerText = `Timer: ${formatTime(timerSeconds)}`;
+}
+
+function startTimer() {
+    resetTimer();
+    timerInterval = setInterval(() => {
+        timerSeconds += 1;
+        document.getElementById("timerText").innerText = `Timer: ${formatTime(timerSeconds)}`;
+    }, 1000);
+}
+
+function stopTimer() {
+    clearInterval(timerInterval);
+}
+
+function getCurrentQuestion() {
+    return interviewQuestions[currentQuestionIndex] || "";
+}
+
+function renderCurrentQuestion() {
+    const total = interviewQuestions.length;
+    if (!total) {
+        document.getElementById("questionCounter").innerText = "";
+        document.getElementById("currentQuestion").innerHTML = "<b>Question will appear here after resume processing.</b>";
+        return;
+    }
+
+    document.getElementById("questionCounter").innerText = `Question ${currentQuestionIndex + 1} of ${total}`;
+    document.getElementById("currentQuestion").innerHTML = `<b>${getCurrentQuestion()}</b>`;
+}
+
+function computeAnswerScore(eyeScore, fillerScore, correctnessScore) {
+    const score = (0.2 * Number(eyeScore)) + (0.2 * Number(fillerScore)) + (0.6 * Number(correctnessScore));
+    return Number(score.toFixed(2));
+}
+
+function renderFinalScoreIfDone() {
+    if (!interviewQuestions.length || perQuestionScores.length !== interviewQuestions.length) {
+        return;
+    }
+
+    const total = perQuestionScores.reduce((sum, item) => sum + item.answerScore, 0);
+    const avg = Number((total / perQuestionScores.length).toFixed(2));
+
+    document.getElementById("finalResult").innerHTML = `
+        <h4>Final Interview Score</h4>
+        <p><b>${avg} / 10</b></p>
+        <p>Based on ${perQuestionScores.length} answered questions.</p>
+    `;
+
+    document.getElementById("startBtn").disabled = true;
+    document.getElementById("stopBtn").disabled = true;
+    document.getElementById("status").innerText = "Interview completed.";
+}
+
+async function generateQuestions() {
+    const input = document.getElementById("resumeInput");
+    const keyInput = document.getElementById("geminiKeyInput");
+    const modelInput = document.getElementById("geminiModelInput");
+    const status = document.getElementById("resumeStatus");
+    const skillsOutput = document.getElementById("skillsOutput");
+
+    document.getElementById("finalResult").innerHTML = "";
+    document.getElementById("answerResult").innerHTML = "";
+
+    if (!input.files || input.files.length === 0) {
+        status.innerText = "Please select a resume file first.";
+        return;
+    }
+
+    status.innerText = "Processing resume and generating questions...";
+
+    const formData = new FormData();
+    formData.append("resume", input.files[0]);
+    if (keyInput.value.trim()) {
+        formData.append("gemini_api_key", keyInput.value.trim());
+    }
+    if (modelInput.value.trim()) {
+        formData.append("gemini_model", modelInput.value.trim());
+    }
+
+    try {
+        const response = await fetch("/generate_resume_questions", {
+            method: "POST",
+            body: formData
+        });
+
+        const raw = await response.text();
+        let payload = null;
+        try {
+            payload = JSON.parse(raw);
+        } catch (_) {
+            payload = null;
+        }
+
+        if (!response.ok) {
+            status.innerText = `Error: ${payload?.error || raw || "Unknown server error"}`;
+            return;
+        }
+
+        if (!payload) {
+            status.innerText = `Unexpected response: ${raw}`;
+            return;
+        }
+
+        const skills = payload.skills || [];
+        interviewQuestions = payload.questions || [];
+        currentQuestionIndex = 0;
+        perQuestionScores = [];
+
+        skillsOutput.innerHTML = `<b>Detected Skills:</b> ${skills.length ? skills.join(", ") : "No known skills detected"}`;
+
+        if (!interviewQuestions.length) {
+            status.innerText = "No questions generated.";
+            renderCurrentQuestion();
+            return;
+        }
+
+        renderCurrentQuestion();
+        document.getElementById("startBtn").disabled = false;
+        document.getElementById("stopBtn").disabled = true;
+
+        const source = payload.question_source || "fallback";
+        const usedModel = payload.gemini_model || "unknown model";
+        if (source === "gemini" || source === "gemini_rest") {
+            status.innerText = `Gemini questions ready (${source}, ${usedModel}). Answer one question at a time.`;
+        } else {
+            const err = payload.gemini_error ? ` | reason: ${payload.gemini_error}` : "";
+            status.innerText = `Gemini unavailable (${source}, ${usedModel}). Using fallback questions.${err}`;
+        }
+    } catch (err) {
+        status.innerText = `Error: ${err.message}`;
+    }
+}
+
+function startRecording() {
+    if (!interviewQuestions.length || currentQuestionIndex >= interviewQuestions.length) {
+        document.getElementById("status").innerText = "Generate questions first.";
+        return;
+    }
+
+    audioChunks = [];
+    liveFinalTranscript = "";
+    liveInterimTranscript = "";
+    isAnswerRecording = true;
+
+    if (speechSupported && speechRecognizer) {
+        try {
+            speechRecognizer.start();
+        } catch (_) {
+        }
+    }
+
+    mediaRecorder = new MediaRecorder(stream);
     mediaRecorder.ondataavailable = event => {
         if (event.data.size > 0) {
             audioChunks.push(event.data);
@@ -48,26 +264,31 @@ function startRecording() {
     };
 
     mediaRecorder.start();
-    document.getElementById("status").innerText = "Recording... Speak now";
+    startTimer();
 
-    clearTimeout(autoStopTimer);
-    autoStopTimer = setTimeout(() => {
-        if (mediaRecorder && mediaRecorder.state === "recording") {
-            document.getElementById("status").innerText = "Auto-stopping to keep processing fast...";
-            stopRecording();
-        }
-    }, MAX_RECORDING_MS);
+    document.getElementById("status").innerText = speechSupported
+        ? "Recording answer... Live transcript enabled. Click Stop when finished."
+        : "Recording answer... Click Stop when finished.";
+    document.getElementById("startBtn").disabled = true;
+    document.getElementById("stopBtn").disabled = false;
 }
 
 function stopRecording() {
-    clearTimeout(autoStopTimer);
-    document.getElementById("status").innerText = "Processing...";
-
     if (!mediaRecorder || mediaRecorder.state !== "recording") {
         return;
     }
+    isAnswerRecording = false;
+
+    if (speechSupported && speechRecognizer) {
+        try {
+            speechRecognizer.stop();
+        } catch (_) {
+        }
+    }
 
     mediaRecorder.stop();
+    stopTimer();
+    document.getElementById("status").innerText = "Analyzing answer...";
 
     mediaRecorder.onstop = async () => {
         const blob = new Blob(audioChunks, { type: "video/webm" });
@@ -75,6 +296,18 @@ function stopRecording() {
 
         const formData = new FormData();
         formData.append("video", file);
+        formData.append("question", getCurrentQuestion());
+        const combinedTranscript = `${liveFinalTranscript} ${liveInterimTranscript}`.trim();
+        formData.append("client_transcript", combinedTranscript);
+
+        const keyVal = document.getElementById("geminiKeyInput").value.trim();
+        const modelVal = document.getElementById("geminiModelInput").value.trim();
+        if (keyVal) {
+            formData.append("gemini_api_key", keyVal);
+        }
+        if (modelVal) {
+            formData.append("gemini_model", modelVal);
+        }
 
         try {
             const response = await fetch("/start_interview", {
@@ -93,24 +326,65 @@ function stopRecording() {
             if (!response.ok) {
                 const errorText = payload?.error || raw || "Unknown server error";
                 document.getElementById("status").innerText = `Error: ${errorText}`;
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("stopBtn").disabled = true;
                 return;
             }
 
             if (!payload) {
                 document.getElementById("status").innerText = `Unexpected response: ${raw}`;
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("stopBtn").disabled = true;
                 return;
             }
 
-            document.getElementById("status").innerHTML = `
-                Transcript: ${payload["Transcript"]}<br>
-                Eye Contact Score: ${payload["Eye Contact Score"]}<br>
-                Filler Words: ${payload["Filler Words"]}
+            const eye = Number(payload["Eye Contact Score"] || 0);
+            const filler = Number(payload["Filler Words"] || 0);
+            const correctness = Number(payload["Correctness Score"] || 0);
+            const transcriptSource = payload["Transcript Source"] || "unknown";
+            const correctnessFeedback = payload["Correctness Feedback"] || "";
+            const correctnessSource = payload["Correctness Source"] || "";
+            const answerScore = computeAnswerScore(eye, filler, correctness);
+
+            perQuestionScores.push({
+                question: getCurrentQuestion(),
+                transcript: payload["Transcript"] || "",
+                eyeScore: eye,
+                fillerScore: filler,
+                correctnessScore: correctness,
+                answerScore
+            });
+
+            document.getElementById("answerResult").innerHTML = `
+                <p><b>Last Answer Analysis:</b></p>
+                <p>Transcript: ${payload["Transcript"]}</p>
+                <p>Transcript Source: ${transcriptSource}</p>
+                <p>Eye Contact Score: ${eye}</p>
+                <p>Filler Words Score: ${filler}</p>
+                <p>Correctness Score (Gemini): ${correctness}</p>
+                <p>Correctness Feedback: ${correctnessFeedback}</p>
+                <p>Correctness Source: ${correctnessSource}</p>
+                <p>Answer Score: ${answerScore} / 10</p>
             `;
+
+            currentQuestionIndex += 1;
+
+            if (currentQuestionIndex < interviewQuestions.length) {
+                renderCurrentQuestion();
+                document.getElementById("status").innerText = "Next question ready. Click Start Answer.";
+                document.getElementById("startBtn").disabled = false;
+                document.getElementById("stopBtn").disabled = true;
+            } else {
+                renderFinalScoreIfDone();
+            }
         } catch (err) {
             document.getElementById("status").innerText = `Error: ${err.message}`;
+            document.getElementById("startBtn").disabled = false;
+            document.getElementById("stopBtn").disabled = true;
         }
 
         audioChunks = [];
+        resetTimer();
     };
 }
 </script>

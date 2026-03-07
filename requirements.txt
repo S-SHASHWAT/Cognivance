@@ -5,3 +5,6 @@ pydub==0.25.1
 textblob==0.18.0.post0
 opencv-python-headless==4.10.0.84
 numpy==1.26.4
+requests==2.32.3
+PyPDF2==3.0.1
+google-genai==0.8.0
