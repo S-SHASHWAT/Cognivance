@@ -127,8 +127,15 @@ def start_interview():
     video_path = os.path.join(UPLOAD_FOLDER, "input.webm")
     video_file.save(video_path)
 
-    server_transcript = transcribe_audio_file(video_path)
-    text, transcript_source = _merge_transcripts(client_transcript, server_transcript)
+    # Keep request latency low on deployment: prefer browser transcript,
+    # use server STT only as fallback (or when explicitly enabled).
+    force_merge = os.environ.get("ENABLE_SERVER_STT_MERGE", "0") == "1"
+    if len(client_transcript) >= 20 and not force_merge:
+        text = client_transcript
+        transcript_source = "browser_live"
+    else:
+        server_transcript = transcribe_audio_file(video_path)
+        text, transcript_source = _merge_transcripts(client_transcript, server_transcript)
 
     filler_score = analyze_filler_words(text)
     eye_score = analyze_eye_contact(video_path)
