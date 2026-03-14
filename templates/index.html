@@ -1,37 +1,280 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Interview Analyzer</title>
+    <style>
+        :root {
+            --bg: #f7f3eb;
+            --panel: #fffaf2;
+            --ink: #1f1a17;
+            --muted: #6c625a;
+            --accent: #c75b39;
+            --accent-dark: #913d23;
+            --border: #e7d8c8;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Georgia, "Times New Roman", serif;
+            background:
+                radial-gradient(circle at top left, #f0d7b7 0, transparent 28%),
+                linear-gradient(135deg, #f8f2e8 0%, #f5ede0 45%, #efe2d0 100%);
+            color: var(--ink);
+        }
+
+        .page {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 32px 20px 48px;
+        }
+
+        .hero,
+        .panel {
+            background: rgba(255, 250, 242, 0.94);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 18px 50px rgba(86, 55, 34, 0.08);
+        }
+
+        .hero {
+            margin-bottom: 20px;
+        }
+
+        .panel {
+            margin-top: 20px;
+        }
+
+        h1, h2, h3, h4, p {
+            margin-top: 0;
+        }
+
+        .subtle {
+            color: var(--muted);
+        }
+
+        .config-row,
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 16px;
+        }
+
+        input[type="password"],
+        input[type="text"],
+        input[type="file"] {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px 14px;
+            background: white;
+            min-width: 240px;
+            font-size: 14px;
+        }
+
+        button {
+            border: 0;
+            border-radius: 999px;
+            padding: 12px 20px;
+            background: var(--accent);
+            color: white;
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 14px;
+        }
+
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.55;
+        }
+
+        .skill-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+            margin: 20px 0;
+        }
+
+        .skill-card {
+            position: relative;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: linear-gradient(180deg, #fffdf9 0%, #f9efe2 100%);
+            padding: 18px;
+            transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .skill-card:hover {
+            transform: translateY(-2px);
+            border-color: #d4987c;
+            box-shadow: 0 10px 24px rgba(140, 76, 48, 0.1);
+        }
+
+        .skill-card input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .skill-card.selected {
+            border-color: var(--accent);
+            box-shadow: 0 12px 30px rgba(199, 91, 57, 0.18);
+        }
+
+        .skill-card-title {
+            display: block;
+            font-size: 20px;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .badge {
+            display: inline-block;
+            border-radius: 999px;
+            padding: 5px 10px;
+            font-size: 12px;
+            background: #f3dfd5;
+            color: var(--accent-dark);
+        }
+
+        .summary-box {
+            margin-top: 16px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: #fff;
+            padding: 16px;
+        }
+
+        #video {
+            width: min(100%, 480px);
+            border-radius: 16px;
+            background: #201814;
+        }
+
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+        }
+
+        .metric {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 14px;
+            background: #fff;
+        }
+
+        #currentQuestion {
+            font-size: 22px;
+            line-height: 1.5;
+        }
+
+        @media (max-width: 640px) {
+            .page {
+                padding: 20px 14px 36px;
+            }
+
+            .hero,
+            .panel {
+                padding: 18px;
+            }
+        }
+    </style>
 </head>
 <body>
+<div class="page">
+    <section class="hero">
+        <h1>AI Interview Analyzer</h1>
+        <p class="subtle">Use either the skill-based interview or the resume-based interview. Each track keeps its own questions, progress, and final score.</p>
 
-<h2>Interview Analyzer</h2>
+        <div class="config-row">
+            <input id="geminiKeyInput" type="password" placeholder="Gemini API Key (optional override)">
+            <input id="geminiModelInput" type="text" value="gemini-3-flash-preview" placeholder="Gemini model">
+        </div>
+        <p class="subtle">The app reads Gemini settings from `.env`. The key field above overrides that value only for the current session.</p>
+    </section>
 
-<h3>1) Resume-Based Questions</h3>
-<input id="resumeInput" type="file" accept=".pdf,.txt,.md" />
-<br><br>
-<input id="geminiKeyInput" type="password" placeholder="Gemini API Key (optional)" style="width: 320px;" />
-<input id="geminiModelInput" type="text" value="gemini-3-flash-preview" placeholder="Gemini model" style="width: 220px;" />
-<button onclick="generateQuestions()">Generate Questions</button>
-<p id="resumeStatus"></p>
-<div id="skillsOutput"></div>
+    <section class="panel">
+        <h2>1. Skill Interview</h2>
+        <p class="subtle">Choose exactly one skill. This interview track is separate from resume-based scoring.</p>
 
-<hr>
+        <div class="skill-grid">
+            <label class="skill-card" data-skill="content">
+                <input type="radio" name="skill" value="content">
+                <span class="skill-card-title">Content</span>
+                <span class="badge">writing and strategy</span>
+            </label>
+            <label class="skill-card" data-skill="frontend">
+                <input type="radio" name="skill" value="frontend">
+                <span class="skill-card-title">Front End</span>
+                <span class="badge">UI and browser apps</span>
+            </label>
+            <label class="skill-card" data-skill="backend">
+                <input type="radio" name="skill" value="backend">
+                <span class="skill-card-title">Back End</span>
+                <span class="badge">APIs and systems</span>
+            </label>
+            <label class="skill-card" data-skill="python">
+                <input type="radio" name="skill" value="python">
+                <span class="skill-card-title">Python</span>
+                <span class="badge">language and problem solving</span>
+            </label>
+            <label class="skill-card" data-skill="web3">
+                <input type="radio" name="skill" value="web3">
+                <span class="skill-card-title">Web 3</span>
+                <span class="badge">blockchain and dapps</span>
+            </label>
+        </div>
 
-<h3>2) Question-by-Question Interview</h3>
-<p id="questionCounter"></p>
-<p id="currentQuestion"><b>Question will appear here after resume processing.</b></p>
-<p id="timerText">Timer: 00:00</p>
+        <div class="actions">
+            <button onclick="generateSkillQuestions()">Start Skill Interview</button>
+        </div>
+        <p id="skillStatus" class="subtle"></p>
+        <div id="skillSummary"></div>
+    </section>
 
-<video id="video" width="320" height="240" autoplay></video>
-<br><br>
+    <section class="panel">
+        <h2>2. Resume Interview</h2>
+        <p class="subtle">Upload a resume after the skill section. Resume questions and score are tracked separately from the skill interview.</p>
 
-<button id="startBtn" onclick="startRecording()" disabled>Start Answer</button>
-<button id="stopBtn" onclick="stopRecording()" disabled>Stop Answer</button>
+        <div class="actions">
+            <input id="resumeInput" type="file" accept=".pdf,.txt,.md">
+            <button onclick="generateResumeQuestions()">Generate Resume Questions</button>
+        </div>
+        <p id="resumeStatus" class="subtle"></p>
+        <div id="resumeSummary"></div>
+    </section>
 
-<p id="status"></p>
-<div id="answerResult"></div>
-<div id="finalResult"></div>
+    <section class="panel">
+        <h2>Active Interview</h2>
+        <p id="activeTrackLabel" class="subtle">No active interview yet.</p>
+        <p id="questionCounter" class="subtle"></p>
+        <p id="currentQuestion"><b>Start a skill interview or a resume interview to begin.</b></p>
+        <p id="timerText">Timer: 00:00</p>
+
+        <video id="video" autoplay muted playsinline></video>
+
+        <div class="actions">
+            <button id="startBtn" onclick="startRecording()" disabled>Start Answer</button>
+            <button id="stopBtn" onclick="stopRecording()" disabled>Stop Answer</button>
+        </div>
+
+        <p id="status" class="subtle"></p>
+        <div id="answerResult"></div>
+    </section>
+
+    <section class="panel">
+        <h2>Separate Final Scores</h2>
+        <div id="skillFinalResult"></div>
+        <div id="resumeFinalResult"></div>
+    </section>
+</div>
 
 <script>
 let mediaRecorder;
@@ -40,9 +283,26 @@ let stream;
 let timerInterval = null;
 let timerSeconds = 0;
 
-let interviewQuestions = [];
-let currentQuestionIndex = 0;
-let perQuestionScores = [];
+const trackState = {
+    skill: {
+        label: "",
+        context: "",
+        questions: [],
+        currentQuestionIndex: 0,
+        perQuestionScores: []
+    },
+    resume: {
+        label: "Resume",
+        context: "Resume",
+        questions: [],
+        currentQuestionIndex: 0,
+        perQuestionScores: [],
+        detectedSkills: []
+    }
+};
+
+let activeTrack = "";
+let selectedSkill = "";
 
 let speechRecognizer = null;
 let liveFinalTranscript = "";
@@ -53,8 +313,16 @@ let isAnswerRecording = false;
 window.onload = async () => {
     document.getElementById("status").innerText = "Initializing camera...";
 
-    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    const cards = Array.from(document.querySelectorAll(".skill-card"));
+    cards.forEach((card) => {
+        card.addEventListener("click", () => {
+            selectedSkill = card.dataset.skill;
+            document.querySelector(`input[name="skill"][value="${selectedSkill}"]`).checked = true;
+            cards.forEach((item) => item.classList.toggle("selected", item === card));
+        });
+    });
 
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
     const video = document.getElementById("video");
     video.srcObject = stream;
     await video.play();
@@ -72,7 +340,7 @@ window.onload = async () => {
             for (let i = event.resultIndex; i < event.results.length; i += 1) {
                 const chunk = event.results[i][0].transcript || "";
                 if (event.results[i].isFinal) {
-                    liveFinalTranscript = (liveFinalTranscript + " " + chunk).trim();
+                    liveFinalTranscript = `${liveFinalTranscript} ${chunk}`.trim();
                 } else {
                     interim += `${chunk} `;
                 }
@@ -80,7 +348,6 @@ window.onload = async () => {
             liveInterimTranscript = interim.trim();
         };
 
-        // Browser recognition can stop mid-answer; restart while recording.
         speechRecognizer.onend = () => {
             if (isAnswerRecording) {
                 try {
@@ -93,6 +360,16 @@ window.onload = async () => {
 
     document.getElementById("status").innerText = "Ready";
 };
+
+function getGeminiOverrides() {
+    const key = document.getElementById("geminiKeyInput").value.trim();
+    const model = document.getElementById("geminiModelInput").value.trim();
+    return { key, model };
+}
+
+function getActiveState() {
+    return trackState[activeTrack] || null;
+}
 
 function formatTime(totalSeconds) {
     const m = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
@@ -118,70 +395,135 @@ function stopTimer() {
     clearInterval(timerInterval);
 }
 
-function getCurrentQuestion() {
-    return interviewQuestions[currentQuestionIndex] || "";
-}
-
 function renderCurrentQuestion() {
-    const total = interviewQuestions.length;
-    if (!total) {
+    const state = getActiveState();
+    if (!state || !state.questions.length) {
+        document.getElementById("activeTrackLabel").innerText = "No active interview yet.";
         document.getElementById("questionCounter").innerText = "";
-        document.getElementById("currentQuestion").innerHTML = "<b>Question will appear here after resume processing.</b>";
+        document.getElementById("currentQuestion").innerHTML = "<b>Start a skill interview or a resume interview to begin.</b>";
+        document.getElementById("startBtn").disabled = true;
+        document.getElementById("stopBtn").disabled = true;
         return;
     }
 
-    document.getElementById("questionCounter").innerText = `Question ${currentQuestionIndex + 1} of ${total}`;
-    document.getElementById("currentQuestion").innerHTML = `<b>${getCurrentQuestion()}</b>`;
+    document.getElementById("activeTrackLabel").innerText = `Active track: ${state.label}`;
+    document.getElementById("questionCounter").innerText = `Question ${state.currentQuestionIndex + 1} of ${state.questions.length}`;
+    document.getElementById("currentQuestion").innerHTML = `<b>${state.questions[state.currentQuestionIndex]}</b>`;
+    document.getElementById("startBtn").disabled = false;
+    document.getElementById("stopBtn").disabled = true;
 }
 
-function computeAnswerScore(eyeScore, fillerScore, correctnessScore) {
-    const score = (0.2 * Number(eyeScore)) + (0.2 * Number(fillerScore)) + (0.6 * Number(correctnessScore));
+function computeAnswerScore(eyeScore, fillerScore, correctnessScore, confidenceScore) {
+    const score = (0.15 * Number(eyeScore)) + (0.15 * Number(fillerScore)) + (0.45 * Number(correctnessScore)) + (0.25 * Number(confidenceScore));
     return Number(score.toFixed(2));
 }
 
-function renderFinalScoreIfDone() {
-    if (!interviewQuestions.length || perQuestionScores.length !== interviewQuestions.length) {
+function renderFinalScore(trackKey) {
+    const state = trackState[trackKey];
+    const targetId = trackKey === "skill" ? "skillFinalResult" : "resumeFinalResult";
+    if (!state.perQuestionScores.length || state.perQuestionScores.length !== state.questions.length) {
         return;
     }
 
-    const total = perQuestionScores.reduce((sum, item) => sum + item.answerScore, 0);
-    const avg = Number((total / perQuestionScores.length).toFixed(2));
-
-    document.getElementById("finalResult").innerHTML = `
-        <h4>Final Interview Score</h4>
-        <p><b>${avg} / 10</b></p>
-        <p>Based on ${perQuestionScores.length} answered questions.</p>
+    const total = state.perQuestionScores.reduce((sum, item) => sum + item.answerScore, 0);
+    const avg = Number((total / state.perQuestionScores.length).toFixed(2));
+    document.getElementById(targetId).innerHTML = `
+        <div class="summary-box">
+            <h4>${state.label} Final Score</h4>
+            <p><b>${avg} / 10</b></p>
+            <p class="subtle">Answered questions: ${state.perQuestionScores.length}</p>
+        </div>
     `;
-
-    document.getElementById("startBtn").disabled = true;
-    document.getElementById("stopBtn").disabled = true;
-    document.getElementById("status").innerText = "Interview completed.";
 }
 
-async function generateQuestions() {
-    const input = document.getElementById("resumeInput");
-    const keyInput = document.getElementById("geminiKeyInput");
-    const modelInput = document.getElementById("geminiModelInput");
-    const status = document.getElementById("resumeStatus");
-    const skillsOutput = document.getElementById("skillsOutput");
+function showQuestionSourceMessage(payload, statusElement, label) {
+    const source = payload.question_source || "fallback";
+    const usedModel = payload.gemini_model || "unknown model";
+    if (source === "gemini" || source === "gemini_rest") {
+        statusElement.innerText = `Gemini questions ready for ${label} (${source}, ${usedModel}).`;
+    } else {
+        const err = payload.gemini_error ? ` Reason: ${payload.gemini_error}` : "";
+        statusElement.innerText = `Gemini unavailable (${source}, ${usedModel}). Using fallback questions.${err}`;
+    }
+}
 
-    document.getElementById("finalResult").innerHTML = "";
-    document.getElementById("answerResult").innerHTML = "";
+async function generateSkillQuestions() {
+    const status = document.getElementById("skillStatus");
+    const summary = document.getElementById("skillSummary");
+    const { key, model } = getGeminiOverrides();
 
-    if (!input.files || input.files.length === 0) {
-        status.innerText = "Please select a resume file first.";
+    if (!selectedSkill) {
+        status.innerText = "Select exactly one skill first.";
         return;
     }
 
-    status.innerText = "Processing resume and generating questions...";
+    status.innerText = "Generating skill-specific questions...";
+
+    const formData = new FormData();
+    formData.append("skill", selectedSkill);
+    if (key) {
+        formData.append("gemini_api_key", key);
+    }
+    if (model) {
+        formData.append("gemini_model", model);
+    }
+
+    try {
+        const response = await fetch("/generate_skill_questions", {
+            method: "POST",
+            body: formData
+        });
+
+        const payload = await response.json();
+        if (!response.ok) {
+            status.innerText = `Error: ${payload.error || "Unknown server error"}`;
+            return;
+        }
+
+        trackState.skill.label = payload.selected_skill_label || "Skill";
+        trackState.skill.context = payload.selected_skill_label || "Skill";
+        trackState.skill.questions = payload.questions || [];
+        trackState.skill.currentQuestionIndex = 0;
+        trackState.skill.perQuestionScores = [];
+
+        summary.innerHTML = `
+            <div class="summary-box">
+                <p><b>Selected Skill:</b> ${trackState.skill.label}</p>
+                <p class="subtle">This score stays separate from the resume interview score.</p>
+            </div>
+        `;
+
+        activeTrack = "skill";
+        document.getElementById("answerResult").innerHTML = "";
+        document.getElementById("skillFinalResult").innerHTML = "";
+        renderCurrentQuestion();
+        showQuestionSourceMessage(payload, status, trackState.skill.label);
+        document.getElementById("status").innerText = "Skill interview is active.";
+    } catch (err) {
+        status.innerText = `Error: ${err.message}`;
+    }
+}
+
+async function generateResumeQuestions() {
+    const status = document.getElementById("resumeStatus");
+    const summary = document.getElementById("resumeSummary");
+    const input = document.getElementById("resumeInput");
+    const { key, model } = getGeminiOverrides();
+
+    if (!input.files || input.files.length === 0) {
+        status.innerText = "Choose a resume file first.";
+        return;
+    }
+
+    status.innerText = "Parsing resume and generating questions...";
 
     const formData = new FormData();
     formData.append("resume", input.files[0]);
-    if (keyInput.value.trim()) {
-        formData.append("gemini_api_key", keyInput.value.trim());
+    if (key) {
+        formData.append("gemini_api_key", key);
     }
-    if (modelInput.value.trim()) {
-        formData.append("gemini_model", modelInput.value.trim());
+    if (model) {
+        formData.append("gemini_model", model);
     }
 
     try {
@@ -190,57 +532,42 @@ async function generateQuestions() {
             body: formData
         });
 
-        const raw = await response.text();
-        let payload = null;
-        try {
-            payload = JSON.parse(raw);
-        } catch (_) {
-            payload = null;
-        }
-
+        const payload = await response.json();
         if (!response.ok) {
-            status.innerText = `Error: ${payload?.error || raw || "Unknown server error"}`;
+            status.innerText = `Error: ${payload.error || "Unknown server error"}`;
             return;
         }
 
-        if (!payload) {
-            status.innerText = `Unexpected response: ${raw}`;
-            return;
-        }
+        trackState.resume.questions = payload.questions || [];
+        trackState.resume.currentQuestionIndex = 0;
+        trackState.resume.perQuestionScores = [];
+        trackState.resume.detectedSkills = payload.skills || [];
+        trackState.resume.context = trackState.resume.detectedSkills.length
+            ? `Resume skills: ${trackState.resume.detectedSkills.join(", ")}`
+            : "Resume";
 
-        const skills = payload.skills || [];
-        interviewQuestions = payload.questions || [];
-        currentQuestionIndex = 0;
-        perQuestionScores = [];
+        summary.innerHTML = `
+            <div class="summary-box">
+                <p><b>Detected Resume Skills:</b> ${trackState.resume.detectedSkills.length ? trackState.resume.detectedSkills.join(", ") : "No known skills detected"}</p>
+                <p class="subtle">This score stays separate from the skill interview score.</p>
+            </div>
+        `;
 
-        skillsOutput.innerHTML = `<b>Detected Skills:</b> ${skills.length ? skills.join(", ") : "No known skills detected"}`;
-
-        if (!interviewQuestions.length) {
-            status.innerText = "No questions generated.";
-            renderCurrentQuestion();
-            return;
-        }
-
+        activeTrack = "resume";
+        document.getElementById("answerResult").innerHTML = "";
+        document.getElementById("resumeFinalResult").innerHTML = "";
         renderCurrentQuestion();
-        document.getElementById("startBtn").disabled = false;
-        document.getElementById("stopBtn").disabled = true;
-
-        const source = payload.question_source || "fallback";
-        const usedModel = payload.gemini_model || "unknown model";
-        if (source === "gemini" || source === "gemini_rest") {
-            status.innerText = `Gemini questions ready (${source}, ${usedModel}). Answer one question at a time.`;
-        } else {
-            const err = payload.gemini_error ? ` | reason: ${payload.gemini_error}` : "";
-            status.innerText = `Gemini unavailable (${source}, ${usedModel}). Using fallback questions.${err}`;
-        }
+        showQuestionSourceMessage(payload, status, "Resume");
+        document.getElementById("status").innerText = "Resume interview is active.";
     } catch (err) {
         status.innerText = `Error: ${err.message}`;
     }
 }
 
 function startRecording() {
-    if (!interviewQuestions.length || currentQuestionIndex >= interviewQuestions.length) {
-        document.getElementById("status").innerText = "Generate questions first.";
+    const state = getActiveState();
+    if (!state || !state.questions.length || state.currentQuestionIndex >= state.questions.length) {
+        document.getElementById("status").innerText = "Start a skill or resume interview first.";
         return;
     }
 
@@ -257,7 +584,7 @@ function startRecording() {
     }
 
     mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = event => {
+    mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
             audioChunks.push(event.data);
         }
@@ -266,9 +593,7 @@ function startRecording() {
     mediaRecorder.start();
     startTimer();
 
-    document.getElementById("status").innerText = speechSupported
-        ? "Recording answer... Live transcript enabled. Click Stop when finished."
-        : "Recording answer... Click Stop when finished.";
+    document.getElementById("status").innerText = `${state.label} interview recording started.`;
     document.getElementById("startBtn").disabled = true;
     document.getElementById("stopBtn").disabled = false;
 }
@@ -277,8 +602,8 @@ function stopRecording() {
     if (!mediaRecorder || mediaRecorder.state !== "recording") {
         return;
     }
-    isAnswerRecording = false;
 
+    isAnswerRecording = false;
     if (speechSupported && speechRecognizer) {
         try {
             speechRecognizer.stop();
@@ -291,22 +616,26 @@ function stopRecording() {
     document.getElementById("status").innerText = "Analyzing answer...";
 
     mediaRecorder.onstop = async () => {
+        const state = getActiveState();
+        if (!state) {
+            resetTimer();
+            return;
+        }
+
         const blob = new Blob(audioChunks, { type: "video/webm" });
         const file = new File([blob], "recording.webm", { type: "video/webm" });
+        const { key, model } = getGeminiOverrides();
 
         const formData = new FormData();
         formData.append("video", file);
-        formData.append("question", getCurrentQuestion());
-        const combinedTranscript = `${liveFinalTranscript} ${liveInterimTranscript}`.trim();
-        formData.append("client_transcript", combinedTranscript);
-
-        const keyVal = document.getElementById("geminiKeyInput").value.trim();
-        const modelVal = document.getElementById("geminiModelInput").value.trim();
-        if (keyVal) {
-            formData.append("gemini_api_key", keyVal);
+        formData.append("skill", state.context);
+        formData.append("question", state.questions[state.currentQuestionIndex] || "");
+        formData.append("client_transcript", `${liveFinalTranscript} ${liveInterimTranscript}`.trim());
+        if (key) {
+            formData.append("gemini_api_key", key);
         }
-        if (modelVal) {
-            formData.append("gemini_model", modelVal);
+        if (model) {
+            formData.append("gemini_model", model);
         }
 
         try {
@@ -315,24 +644,9 @@ function stopRecording() {
                 body: formData
             });
 
-            const raw = await response.text();
-            let payload = null;
-            try {
-                payload = JSON.parse(raw);
-            } catch (_) {
-                payload = null;
-            }
-
+            const payload = await response.json();
             if (!response.ok) {
-                const errorText = payload?.error || raw || "Unknown server error";
-                document.getElementById("status").innerText = `Error: ${errorText}`;
-                document.getElementById("startBtn").disabled = false;
-                document.getElementById("stopBtn").disabled = true;
-                return;
-            }
-
-            if (!payload) {
-                document.getElementById("status").innerText = `Unexpected response: ${raw}`;
+                document.getElementById("status").innerText = `Error: ${payload.error || "Unknown server error"}`;
                 document.getElementById("startBtn").disabled = false;
                 document.getElementById("stopBtn").disabled = true;
                 return;
@@ -341,41 +655,48 @@ function stopRecording() {
             const eye = Number(payload["Eye Contact Score"] || 0);
             const filler = Number(payload["Filler Words"] || 0);
             const correctness = Number(payload["Correctness Score"] || 0);
+            const confidence = Number(payload["Confidence Score"] || 0);
             const transcriptSource = payload["Transcript Source"] || "unknown";
             const correctnessFeedback = payload["Correctness Feedback"] || "";
             const correctnessSource = payload["Correctness Source"] || "";
-            const answerScore = computeAnswerScore(eye, filler, correctness);
+            const answerScore = computeAnswerScore(eye, filler, correctness, confidence);
 
-            perQuestionScores.push({
-                question: getCurrentQuestion(),
+            state.perQuestionScores.push({
+                question: state.questions[state.currentQuestionIndex],
                 transcript: payload["Transcript"] || "",
                 eyeScore: eye,
                 fillerScore: filler,
                 correctnessScore: correctness,
+                confidenceScore: confidence,
                 answerScore
             });
 
             document.getElementById("answerResult").innerHTML = `
-                <p><b>Last Answer Analysis:</b></p>
-                <p>Transcript: ${payload["Transcript"]}</p>
-                <p>Transcript Source: ${transcriptSource}</p>
-                <p>Eye Contact Score: ${eye}</p>
-                <p>Filler Words Score: ${filler}</p>
-                <p>Correctness Score (Gemini): ${correctness}</p>
-                <p>Correctness Feedback: ${correctnessFeedback}</p>
-                <p>Correctness Source: ${correctnessSource}</p>
-                <p>Answer Score: ${answerScore} / 10</p>
+                <div class="summary-box">
+                    <h4>${state.label} - Last Answer Analysis</h4>
+                    <p><b>Transcript:</b> ${payload["Transcript"] || ""}</p>
+                    <p class="subtle"><b>Transcript Source:</b> ${transcriptSource}</p>
+                    <div class="metric-grid">
+                        <div class="metric"><b>Eye Contact</b><p>${eye} / 10</p></div>
+                        <div class="metric"><b>Filler Words</b><p>${filler} / 10</p></div>
+                        <div class="metric"><b>Correctness</b><p>${correctness} / 10</p></div>
+                        <div class="metric"><b>Confidence</b><p>${confidence} / 10</p></div>
+                        <div class="metric"><b>Answer Score</b><p>${answerScore} / 10</p></div>
+                    </div>
+                    <p style="margin-top: 14px;"><b>Feedback:</b> ${correctnessFeedback}</p>
+                    <p class="subtle"><b>Scoring Source:</b> ${correctnessSource}</p>
+                </div>
             `;
 
-            currentQuestionIndex += 1;
-
-            if (currentQuestionIndex < interviewQuestions.length) {
+            state.currentQuestionIndex += 1;
+            if (state.currentQuestionIndex < state.questions.length) {
                 renderCurrentQuestion();
-                document.getElementById("status").innerText = "Next question ready. Click Start Answer.";
-                document.getElementById("startBtn").disabled = false;
-                document.getElementById("stopBtn").disabled = true;
+                document.getElementById("status").innerText = `Next ${state.label} question ready.`;
             } else {
-                renderFinalScoreIfDone();
+                renderFinalScore(activeTrack);
+                document.getElementById("status").innerText = `${state.label} interview completed.`;
+                document.getElementById("startBtn").disabled = true;
+                document.getElementById("stopBtn").disabled = true;
             }
         } catch (err) {
             document.getElementById("status").innerText = `Error: ${err.message}`;
@@ -388,6 +709,5 @@ function stopRecording() {
     };
 }
 </script>
-
 </body>
 </html>
