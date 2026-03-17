@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timezone
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
@@ -21,6 +22,7 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 DEFAULT_GEMINI_API_KEY = ""
+SKILL_SCORE_STORE: dict[tuple[str, str], dict] = {}
 
 
 def _merge_transcripts(client_text: str, server_text: str) -> tuple[str, str]:
@@ -67,6 +69,42 @@ def index():
 @app.route("/health")
 def health():
     return jsonify({"status": "ok"})
+
+
+@app.route("/skill_score", methods=["POST"])
+def save_skill_score():
+    payload = request.get_json(silent=True) or {}
+    user_id = str(payload.get("user_id") or "").strip()
+    session_id = str(payload.get("session_id") or "").strip()
+    final_score = payload.get("final_score")
+
+    if not user_id or not session_id:
+        return jsonify({"error": "user_id and session_id are required."}), 400
+
+    try:
+        normalized_score = round(float(final_score), 2)
+    except Exception:
+        return jsonify({"error": "final_score must be a valid number."}), 400
+
+    record = {
+        "user_id": user_id,
+        "session_id": session_id,
+        "skill": str(payload.get("skill") or "").strip(),
+        "final_score": normalized_score,
+        "answered_questions": int(payload.get("answered_questions") or 0),
+        "total_questions": int(payload.get("total_questions") or 0),
+        "saved_at": datetime.now(timezone.utc).isoformat(),
+    }
+    SKILL_SCORE_STORE[(user_id, session_id)] = record
+    return jsonify({"message": "Skill score saved.", "record": record})
+
+
+@app.route("/skill_score/<user_id>/<session_id>", methods=["GET"])
+def get_skill_score(user_id: str, session_id: str):
+    record = SKILL_SCORE_STORE.get((user_id.strip(), session_id.strip()))
+    if record is None:
+        return jsonify({"error": "Skill score not found for the provided user_id and session_id."}), 404
+    return jsonify(record)
 
 
 @app.route("/interview_skills", methods=["GET"])

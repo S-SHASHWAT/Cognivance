@@ -204,6 +204,11 @@
         <h2>1. Skill Interview</h2>
         <p class="subtle">Choose exactly one skill. This interview track is separate from resume-based scoring.</p>
 
+        <div class="config-row">
+            <input id="skillUserIdInput" type="text" placeholder="User ID for skill score">
+            <input id="skillSessionIdInput" type="text" placeholder="Session ID for skill score">
+        </div>
+
         <div class="skill-grid">
             <label class="skill-card" data-skill="content">
                 <input type="radio" name="skill" value="content">
@@ -237,6 +242,7 @@
         </div>
         <p id="skillStatus" class="subtle"></p>
         <div id="skillSummary"></div>
+        <div id="skillScoreLookup"></div>
     </section>
 
     <section class="panel">
@@ -263,7 +269,12 @@
         <div class="actions">
             <button id="startBtn" onclick="startRecording()" disabled>Start Answer</button>
             <button id="stopBtn" onclick="stopRecording()" disabled>Stop Answer</button>
+            <button id="speakBtn" onclick="speakCurrentQuestion()" disabled>Speak Question</button>
         </div>
+        <label class="subtle" style="display: inline-flex; gap: 8px; align-items: center; margin-top: 12px;">
+            <input id="autoSpeakToggle" type="checkbox" checked>
+            Auto-speak each new question
+        </label>
 
         <p id="status" class="subtle"></p>
         <div id="answerResult"></div>
@@ -287,6 +298,8 @@ const trackState = {
     skill: {
         label: "",
         context: "",
+        userId: "",
+        sessionId: "",
         questions: [],
         currentQuestionIndex: 0,
         perQuestionScores: []
@@ -305,6 +318,7 @@ let activeTrack = "";
 let selectedSkill = "";
 
 let speechRecognizer = null;
+let voicesReady = false;
 let liveFinalTranscript = "";
 let liveInterimTranscript = "";
 let speechSupported = false;
@@ -358,6 +372,13 @@ window.onload = async () => {
         };
     }
 
+    if (typeof window.speechSynthesis !== "undefined") {
+        window.speechSynthesis.onvoiceschanged = () => {
+            voicesReady = true;
+        };
+        voicesReady = true;
+    }
+
     document.getElementById("status").innerText = "Ready";
 };
 
@@ -403,6 +424,7 @@ function renderCurrentQuestion() {
         document.getElementById("currentQuestion").innerHTML = "<b>Start a skill interview or a resume interview to begin.</b>";
         document.getElementById("startBtn").disabled = true;
         document.getElementById("stopBtn").disabled = true;
+        document.getElementById("speakBtn").disabled = true;
         return;
     }
 
@@ -411,6 +433,11 @@ function renderCurrentQuestion() {
     document.getElementById("currentQuestion").innerHTML = `<b>${state.questions[state.currentQuestionIndex]}</b>`;
     document.getElementById("startBtn").disabled = false;
     document.getElementById("stopBtn").disabled = true;
+    document.getElementById("speakBtn").disabled = false;
+
+    if (document.getElementById("autoSpeakToggle").checked) {
+        speakCurrentQuestion();
+    }
 }
 
 function computeAnswerScore(eyeScore, fillerScore, correctnessScore, confidenceScore) {
@@ -434,6 +461,10 @@ function renderFinalScore(trackKey) {
             <p class="subtle">Answered questions: ${state.perQuestionScores.length}</p>
         </div>
     `;
+
+    if (trackKey === "skill") {
+        saveSkillScore(avg);
+    }
 }
 
 function showQuestionSourceMessage(payload, statusElement, label) {
@@ -447,13 +478,85 @@ function showQuestionSourceMessage(payload, statusElement, label) {
     }
 }
 
+function speakCurrentQuestion() {
+    const state = getActiveState();
+    if (!state || !state.questions.length || typeof window.speechSynthesis === "undefined") {
+        return;
+    }
+
+    const text = state.questions[state.currentQuestionIndex] || "";
+    if (!text) {
+        return;
+    }
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.98;
+    utterance.pitch = 1;
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voicesReady && voices.length) {
+        const preferredVoice = voices.find((voice) => voice.lang && voice.lang.toLowerCase().startsWith("en"));
+        if (preferredVoice) {
+            utterance.voice = preferredVoice;
+        }
+    }
+
+    window.speechSynthesis.speak(utterance);
+}
+
+async function saveSkillScore(finalScore) {
+    const state = trackState.skill;
+    if (!state.userId || !state.sessionId) {
+        return;
+    }
+
+    const response = await fetch("/skill_score", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+            user_id: state.userId,
+            session_id: state.sessionId,
+            skill: state.label,
+            final_score: finalScore,
+            answered_questions: state.perQuestionScores.length,
+            total_questions: state.questions.length
+        })
+    });
+
+    const payload = await response.json();
+    const target = document.getElementById("skillScoreLookup");
+    if (!response.ok) {
+        target.innerHTML = `<div class="summary-box"><p class="subtle">Could not save skill score: ${payload.error || "Unknown error"}</p></div>`;
+        return;
+    }
+
+    target.innerHTML = `
+        <div class="summary-box">
+            <p><b>Skill score saved</b></p>
+            <p class="subtle">User ID: ${payload.record.user_id}</p>
+            <p class="subtle">Session ID: ${payload.record.session_id}</p>
+            <p class="subtle">Fetch route: /skill_score/${payload.record.user_id}/${payload.record.session_id}</p>
+        </div>
+    `;
+}
+
 async function generateSkillQuestions() {
     const status = document.getElementById("skillStatus");
     const summary = document.getElementById("skillSummary");
+    const userId = document.getElementById("skillUserIdInput").value.trim();
+    const sessionId = document.getElementById("skillSessionIdInput").value.trim();
     const { key, model } = getGeminiOverrides();
 
     if (!selectedSkill) {
         status.innerText = "Select exactly one skill first.";
+        return;
+    }
+
+    if (!userId || !sessionId) {
+        status.innerText = "Enter both User ID and Session ID for the skill interview.";
         return;
     }
 
@@ -482,6 +585,8 @@ async function generateSkillQuestions() {
 
         trackState.skill.label = payload.selected_skill_label || "Skill";
         trackState.skill.context = payload.selected_skill_label || "Skill";
+        trackState.skill.userId = userId;
+        trackState.skill.sessionId = sessionId;
         trackState.skill.questions = payload.questions || [];
         trackState.skill.currentQuestionIndex = 0;
         trackState.skill.perQuestionScores = [];
@@ -489,6 +594,8 @@ async function generateSkillQuestions() {
         summary.innerHTML = `
             <div class="summary-box">
                 <p><b>Selected Skill:</b> ${trackState.skill.label}</p>
+                <p class="subtle">User ID: ${trackState.skill.userId}</p>
+                <p class="subtle">Session ID: ${trackState.skill.sessionId}</p>
                 <p class="subtle">This score stays separate from the resume interview score.</p>
             </div>
         `;
@@ -496,6 +603,7 @@ async function generateSkillQuestions() {
         activeTrack = "skill";
         document.getElementById("answerResult").innerHTML = "";
         document.getElementById("skillFinalResult").innerHTML = "";
+        document.getElementById("skillScoreLookup").innerHTML = "";
         renderCurrentQuestion();
         showQuestionSourceMessage(payload, status, trackState.skill.label);
         document.getElementById("status").innerText = "Skill interview is active.";
