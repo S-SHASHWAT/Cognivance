@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request
@@ -22,7 +23,35 @@ UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 DEFAULT_GEMINI_API_KEY = ""
-SKILL_SCORE_STORE: dict[tuple[str, str], dict] = {}
+SKILL_SCORE_DB_PATH = os.environ.get("SKILL_SCORE_DB_PATH", os.path.join(UPLOAD_FOLDER, "skill_scores.db"))
+
+
+def _get_db_connection() -> sqlite3.Connection:
+    connection = sqlite3.connect(SKILL_SCORE_DB_PATH)
+    connection.row_factory = sqlite3.Row
+    return connection
+
+
+def _init_skill_score_db() -> None:
+    with _get_db_connection() as connection:
+        connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS skill_scores (
+                user_id TEXT NOT NULL,
+                session_id TEXT NOT NULL,
+                skill TEXT NOT NULL,
+                final_score REAL NOT NULL,
+                answered_questions INTEGER NOT NULL,
+                total_questions INTEGER NOT NULL,
+                saved_at TEXT NOT NULL,
+                PRIMARY KEY (user_id, session_id)
+            )
+            """
+        )
+        connection.commit()
+
+
+_init_skill_score_db()
 
 
 def _merge_transcripts(client_text: str, server_text: str) -> tuple[str, str]:
@@ -95,16 +124,52 @@ def save_skill_score():
         "total_questions": int(payload.get("total_questions") or 0),
         "saved_at": datetime.now(timezone.utc).isoformat(),
     }
-    SKILL_SCORE_STORE[(user_id, session_id)] = record
+
+    with _get_db_connection() as connection:
+        connection.execute(
+            """
+            INSERT INTO skill_scores (
+                user_id, session_id, skill, final_score,
+                answered_questions, total_questions, saved_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, session_id) DO UPDATE SET
+                skill = excluded.skill,
+                final_score = excluded.final_score,
+                answered_questions = excluded.answered_questions,
+                total_questions = excluded.total_questions,
+                saved_at = excluded.saved_at
+            """,
+            (
+                record["user_id"],
+                record["session_id"],
+                record["skill"],
+                record["final_score"],
+                record["answered_questions"],
+                record["total_questions"],
+                record["saved_at"],
+            ),
+        )
+        connection.commit()
+
     return jsonify({"message": "Skill score saved.", "record": record})
 
 
 @app.route("/skill_score/<user_id>/<session_id>", methods=["GET"])
 def get_skill_score(user_id: str, session_id: str):
-    record = SKILL_SCORE_STORE.get((user_id.strip(), session_id.strip()))
-    if record is None:
+    with _get_db_connection() as connection:
+        row = connection.execute(
+            """
+            SELECT user_id, session_id, skill, final_score,
+                   answered_questions, total_questions, saved_at
+            FROM skill_scores
+            WHERE user_id = ? AND session_id = ?
+            """,
+            (user_id.strip(), session_id.strip()),
+        ).fetchone()
+
+    if row is None:
         return jsonify({"error": "Skill score not found for the provided user_id and session_id."}), 404
-    return jsonify(record)
+    return jsonify(dict(row))
 
 
 @app.route("/interview_skills", methods=["GET"])
