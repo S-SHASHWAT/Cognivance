@@ -198,16 +198,12 @@
             <input id="geminiModelInput" type="text" value="gemini-3-flash-preview" placeholder="Gemini model">
         </div>
         <p class="subtle">The app reads Gemini settings from `.env`. The key field above overrides that value only for the current session.</p>
+        <div id="requestParamsSummary" class="summary-box"></div>
     </section>
 
     <section class="panel">
         <h2>1. Skill Interview</h2>
-        <p class="subtle">Choose exactly one skill. This interview track is separate from resume-based scoring.</p>
-
-        <div class="config-row">
-            <input id="skillUserIdInput" type="text" placeholder="User ID for skill score">
-            <input id="skillSessionIdInput" type="text" placeholder="Session ID for skill score">
-        </div>
+        <p class="subtle">Choose exactly one skill. This interview track is separate from resume-based scoring, and it uses `user_id` and `session_id` from the URL parameters.</p>
 
         <div class="skill-grid">
             <label class="skill-card" data-skill="content">
@@ -293,6 +289,9 @@ let audioChunks = [];
 let stream;
 let timerInterval = null;
 let timerSeconds = 0;
+const requestParams = new URLSearchParams(window.location.search);
+const requestUserId = (requestParams.get("user_id") || "").trim();
+const requestSessionId = (requestParams.get("session_id") || "").trim();
 
 const trackState = {
     skill: {
@@ -326,6 +325,12 @@ let isAnswerRecording = false;
 
 window.onload = async () => {
     document.getElementById("status").innerText = "Initializing camera...";
+    document.getElementById("requestParamsSummary").innerHTML = `
+        <p><b>Request Parameters</b></p>
+        <p class="subtle">user_id: ${requestUserId || "missing"}</p>
+        <p class="subtle">session_id: ${requestSessionId || "missing"}</p>
+        <p class="subtle">Open the app like: ?user_id=123&session_id=abc</p>
+    `;
 
     const cards = Array.from(document.querySelectorAll(".skill-card"));
     cards.forEach((card) => {
@@ -546,8 +551,6 @@ async function saveSkillScore(finalScore) {
 async function generateSkillQuestions() {
     const status = document.getElementById("skillStatus");
     const summary = document.getElementById("skillSummary");
-    const userId = document.getElementById("skillUserIdInput").value.trim();
-    const sessionId = document.getElementById("skillSessionIdInput").value.trim();
     const { key, model } = getGeminiOverrides();
 
     if (!selectedSkill) {
@@ -555,8 +558,8 @@ async function generateSkillQuestions() {
         return;
     }
 
-    if (!userId || !sessionId) {
-        status.innerText = "Enter both User ID and Session ID for the skill interview.";
+    if (!requestUserId || !requestSessionId) {
+        status.innerText = "Missing URL parameters. Open this page with user_id and session_id in the query string.";
         return;
     }
 
@@ -585,8 +588,8 @@ async function generateSkillQuestions() {
 
         trackState.skill.label = payload.selected_skill_label || "Skill";
         trackState.skill.context = payload.selected_skill_label || "Skill";
-        trackState.skill.userId = userId;
-        trackState.skill.sessionId = sessionId;
+        trackState.skill.userId = requestUserId;
+        trackState.skill.sessionId = requestSessionId;
         trackState.skill.questions = payload.questions || [];
         trackState.skill.currentQuestionIndex = 0;
         trackState.skill.perQuestionScores = [];
