@@ -2,6 +2,7 @@ import os
 import sqlite3
 from datetime import datetime, timezone
 from dotenv import load_dotenv
+from flask_cors import CORS
 from flask import Flask, jsonify, render_template, request
 from werkzeug.exceptions import HTTPException
 from speech_module import transcribe_audio_file
@@ -18,6 +19,10 @@ from resume_module import (
 load_dotenv()
 
 app = Flask(__name__)
+CORS(
+    app,
+    resources={r"/*": {"origins": os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")}},
+)
 
 UPLOAD_FOLDER = "uploads"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)

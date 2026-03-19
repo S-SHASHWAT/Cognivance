@@ -9,3 +9,4 @@ requests==2.32.3
 PyPDF2==3.0.1
 google-genai==0.8.0
 python-dotenv==1.0.1
+Flask-Cors==5.0.0
