@@ -21,7 +21,14 @@ load_dotenv()
 app = Flask(__name__)
 CORS(
     app,
-    resources={r"/*": {"origins": os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")}},
+    resources={
+        r"/*": {
+            "origins": os.environ.get(
+                "CORS_ORIGINS",
+                "http://localhost:5173,https://cognivance-frontend.vercel.app",
+            ).split(",")
+        }
+    },
 )
 
 UPLOAD_FOLDER = "uploads"
